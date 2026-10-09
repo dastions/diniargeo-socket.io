@@ -2,13 +2,13 @@ FROM arm32v7/node:22-bookworm
 
 WORKDIR /app
 
-COPY package.json .
+COPY package.json package-lock.json ./
 COPY src src
 COPY .babelrc .
 
 RUN ls -la
 
-RUN npm install
+RUN npm ci
 RUN npm run build
 
 RUN cp -r dist/* .
