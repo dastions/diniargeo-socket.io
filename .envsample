@@ -1,0 +1,39 @@
+# Scale
+# MACHINE_MODEL: "test" = simulated scale (no interface). Empty = real scale (READ/ZERO).
+MACHINE_MODEL=
+BASCULA_ID=value
+BASCULA_NAME=value
+# Units of the simulated scale (the real scale reports them in each READ answer)
+BASCULA_UNITS=kg
+
+# Scale interface: SERIAL_COM -> serial port; otherwise DEVICE_IP/DEVICE_PORT -> TCP socket
+DEVICE_IP=
+DEVICE_PORT=4001
+
+SERIAL_COM=
+SERIAL_BAUDRATE=9600
+SERIAL_DATABITS=8
+SERIAL_STOPBITS=1
+SERIAL_PARITY=none
+SERIAL_REGEX=\r\n
+
+# READ polling interval in ms (default SOCKET_DATA_INTERVAL_MS or 1000)
+SCALE_READ_INTERVAL_MS=1000
+# Max wait for a scale answer in ms; on timeout the status becomes no_response (default 2000)
+SCALE_RESPONSE_TIMEOUT_MS=2000
+
+HTTP_PORT=3030
+DEBUG=false
+
+# Socket.IO Server (operator frontend)
+# Required: without it the Socket.IO server does not start.
+DEVICE_SOCKET_TOKEN=
+# Comma-separated list of allowed origins. Never use *.
+SOCKET_ALLOWED_ORIGINS=https://app.example.com
+# Max simultaneous clients: 1 (Base) / 2 (Pro) / 3 (Enterprise)
+SOCKET_MAX_CLIENTS=1
+# Live weight emission interval in ms (default 1000)
+SOCKET_DATA_INTERVAL_MS=1000
+# Optional TLS (WSS). If unset, plain HTTP/WS (not suitable for HTTPS frontends).
+SSL_KEY_PATH=
+SSL_CERT_PATH=

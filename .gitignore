@@ -1,0 +1,13 @@
+node_modules/
+
+build/
+dist/
+tmp/
+
+yarn-error.log
+
+frontend/
+backend/
+
+.env
+.env*

@@ -1,0 +1,56 @@
+# SOLO DESARROLLO: levanta 2 slaves simulados (MACHINE_MODEL=test, sin
+# serialport) para probar múltiples balanzas desde el frontend. Producción
+# sigue usando docker-compose.yml + Dockerfile (arm32v7), intactos.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml logs -f
+#   docker compose -f docker-compose.dev.yml down
+#
+# Cada servicio hereda el .env y solo cambia el puerto (y el nombre, para
+# distinguirlas en pantalla). Para añadir una tercera balanza: copia un bloque,
+# cambia puerto/nombre y añade su volumen de node_modules.
+name: dtmi4-dev
+
+x-slave: &slave
+  image: node:22-bookworm
+  working_dir: /app
+  # node_modules propio por servicio (volumen); se instala solo la primera
+  # vez — si cambian las dependencias: docker compose -f docker-compose.dev.yml down -v
+  command: sh -c "mkdir -p tmp && ([ -d node_modules/nodemon ] || npm install --no-audit --no-fund) && npm run slave"
+  env_file: .env
+  restart: unless-stopped
+  extra_hosts:
+    - host.docker.internal:host-gateway
+
+services:
+  slave-a:
+    <<: *slave
+    environment:
+      HTTP_PORT: 3030
+      MACHINE_MODEL: test
+      BASCULA_NAME: TEST-A
+      SOCKET_ALLOWED_ORIGINS: http://localhost:5173
+      SOCKET_DATA_INTERVAL_MS: 300
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./:/app
+      - slave_a_modules:/app/node_modules
+
+  slave-b:
+    <<: *slave
+    environment:
+      HTTP_PORT: 3031
+      MACHINE_MODEL: test
+      BASCULA_NAME: TEST-B
+      SOCKET_ALLOWED_ORIGINS: http://localhost:5173
+      SOCKET_DATA_INTERVAL_MS: 300
+    ports:
+      - "3031:3031"
+    volumes:
+      - ./:/app
+      - slave_b_modules:/app/node_modules
+
+volumes:
+  slave_a_modules:
+  slave_b_modules:

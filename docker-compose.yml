@@ -1,0 +1,26 @@
+version: '3.7'
+services:
+  slave:
+    build: .
+    restart: always
+    env_file:
+      - .env.slave
+    ports:
+      - target: 4001
+        published: 4001
+        protocol: tcp
+        mode: host
+      - target: 3001
+        published: 3001
+        protocol: tcp
+        mode: host
+    # devices:
+      # - "/dev/ttyUSB0:/dev/ttyUSB0"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    logging:
+      driver: "json-file"
+      options:
+        max-file: 2
+        max-size: 10m
+  
