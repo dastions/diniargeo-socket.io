@@ -10,6 +10,8 @@ export const SOCKET_EVENTS = {
   OK: 'ok',
   ERROR: 'error',
   ZERO: 'zero',
+  COMMAND: 'command',
+  COMMAND_ANSWER: 'command_answer',
 };
 
 // Device-level status values emitted through the `status` event.
@@ -29,6 +31,10 @@ export const ERROR_CODES = {
   UNSUPPORTED_WEIGHT_UNIT: 'UNSUPPORTED_WEIGHT_UNIT',
   INVALID_PAYLOAD: 'INVALID_PAYLOAD',
   MAX_CLIENTS_REACHED: 'MAX_CLIENTS_REACHED',
+  // Free commands (`command` event).
+  NO_RESPONSE: 'NO_RESPONSE',
+  DISCONNECTED: 'DISCONNECTED',
+  DEVICE_UNAVAILABLE: 'DEVICE_UNAVAILABLE',
 };
 
 export function isSupportedWeightUnit(unit) {

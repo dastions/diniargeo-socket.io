@@ -20,6 +20,7 @@ function createFakeArmari() {
     handleOk: jest.fn(),
     handleError: jest.fn(),
     handleZero: jest.fn(),
+    handleCommand: jest.fn(async (command) => `ANSWER ${command}\r\n`),
   };
 }
 
@@ -212,6 +213,87 @@ describe('SocketServer', () => {
 
     expect(armari.handleZero).not.toHaveBeenCalled();
     expect(client.connected).toBe(true);
+  });
+
+  it("forwards a free 'command' and answers the same id with the raw scale text", async () => {
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 'c-1', command: 'READ' });
+    const answer = await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(armari.handleCommand).toHaveBeenCalledWith('READ', undefined);
+    expect(answer).toMatchObject({ id: 'c-1', command: 'READ', answer: 'ANSWER READ\r\n', error: null });
+    expect(answer.timestamp).toBeDefined();
+  });
+
+  it('pairs each command_answer with its command id when several are in flight', async () => {
+    let releaseSlow;
+    armari.handleCommand.mockImplementation((command) => command === 'SLOW'
+      ? new Promise((resolve) => { releaseSlow = () => resolve('slow\r\n'); })
+      : Promise.resolve('fast\r\n'));
+
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    const answers = [];
+    client.on(SOCKET_EVENTS.COMMAND_ANSWER, (payload) => answers.push(payload));
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 1, command: 'SLOW' });
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 2, command: 'FAST' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseSlow();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(answers.map((a) => [a.id, a.answer])).toEqual([[2, 'fast\r\n'], [1, 'slow\r\n']]);
+  });
+
+  it('passes the optional endLine to the main class', async () => {
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 'c-2', command: 'RAW', endLine: '' });
+    await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(armari.handleCommand).toHaveBeenCalledWith('RAW', '');
+  });
+
+  it('answers NO_RESPONSE when the scale does not answer the command', async () => {
+    armari.handleCommand.mockResolvedValue(null);
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 'c-3', command: 'READ' });
+    const answer = await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(answer).toMatchObject({ id: 'c-3', answer: null, error: ERROR_CODES.NO_RESPONSE });
+  });
+
+  it('answers DISCONNECTED without writing when the interface is down', async () => {
+    armari.device.isConnected = false;
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 'c-4', command: 'READ' });
+    const answer = await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(answer).toMatchObject({ id: 'c-4', answer: null, error: ERROR_CODES.DISCONNECTED });
+    expect(armari.handleCommand).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['without id', { command: 'READ' }],
+    ['with an empty command', { id: 'x', command: '' }],
+    ['with a line break inside the command', { id: 'x', command: 'READ\r\nZERO' }],
+    ['with an unsupported endLine', { id: 'x', command: 'READ', endLine: '\t' }],
+  ])('rejects a command %s with INVALID_PAYLOAD', async (_, payload) => {
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, payload);
+    const answer = await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(answer).toMatchObject({ answer: null, error: ERROR_CODES.INVALID_PAYLOAD });
+    expect(armari.handleCommand).not.toHaveBeenCalled();
   });
 
   it('rejects invalid payloads without reaching the main class', async () => {

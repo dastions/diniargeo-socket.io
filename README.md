@@ -70,7 +70,7 @@ src/
     ├── events.js            Nombres de eventos, estados y unidades permitidas
     ├── auth.js              Validación del token (comparación timing-safe)
     ├── payloads.js          Construcción y validación de payloads
-    └── handlers/            Handlers de eventos entrantes (ok, error, zero)
+    └── handlers/            Handlers de eventos entrantes (ok, error, zero, command)
 ```
 
 ## Requisitos e instalación
@@ -194,6 +194,53 @@ El operario solicita puesta a cero. Payload: objeto plano (`{}`). Se envía el
 comando `ZERO` a la báscula; el frontend no recibe respuesta (si la báscula
 no contesta, el status pasa a `no_response`).
 
+### `command` → `command_answer` — Comandos libres (proxy)
+
+Permite enviar **cualquier comando** a la báscula desde el frontend sin tocar
+dtmi4. El servidor reenvía la trama tal cual y le añade solo el terminador.
+**Si el protocolo necesita checksum, lo calcula el cliente** y lo incluye en
+`command`. La respuesta se envía **solo al cliente que lo pidió**.
+
+Frontend → servidor:
+
+```json
+{ "id": "c-42", "command": "READ", "endLine": "\r\n" }
+```
+
+| Campo | Descripción |
+|---|---|
+| `id` | Obligatorio. String (máx. 64) o número; se devuelve tal cual para emparejar la respuesta |
+| `command` | Obligatorio. Trama completa (máx. 256 caracteres, sin `\r` ni `\n`) |
+| `endLine` | Opcional: `"\r\n"` (por defecto), `"\r"`, `"\n"` o `""` |
+
+Servidor → cliente:
+
+```json
+{ "id": "c-42", "command": "READ", "answer": "ST,GS,     0.0,kg\r\n", "error": null, "timestamp": "..." }
+```
+
+`answer` es el texto recibido de la báscula en crudo, hasta el `\n`. Si no
+hay respuesta, `answer` es `null` y `error` vale:
+
+| `error` | Causa |
+|---|---|
+| `INVALID_PAYLOAD` | Payload mal formado |
+| `DISCONNECTED` | Interfaz TCP/serie caída (no se envía nada) |
+| `NO_RESPONSE` | Sin respuesta en `SCALE_RESPONSE_TIMEOUT_MS` (además el status pasa a `no_response`) |
+| `DEVICE_UNAVAILABLE` | Sin báscula configurada o fallo interno |
+
+Sincronización:
+- Los comandos (libres y el bucle `READ`) pasan por una **cola única** en
+  `Scale`, así que nunca hay dos esperando respuesta en la báscula y las
+  respuestas no se mezclan.
+- El cliente empareja cada `command_answer` por su `id`.
+- Cada comando espera su turno en la cola, así que un cliente con muchos
+  comandos encolados ve aumentar la latencia.
+
+Seguridad: no hay lista blanca. Cualquier cliente autenticado con el token
+puede enviar cualquier comando a la báscula, incluidos los de configuración o
+escritura de tablas.
+
 ### `ok` / `error` — Frontend → Servidor local
 
 La aplicación web ha aceptado / rechazado una pesada. Se validan (objeto plano
@@ -207,6 +254,7 @@ UNAUTHORIZED             token inválido o ausente (handshake)
 MAX_CLIENTS_REACHED      límite de clientes del plan alcanzado (handshake)
 INVALID_PAYLOAD          payload entrante mal formado
 UNSUPPORTED_WEIGHT_UNIT  unidad fuera del enum cerrado
+NO_RESPONSE / DISCONNECTED / DEVICE_UNAVAILABLE   solo en command_answer
 ```
 
 ## Seguridad
@@ -221,6 +269,10 @@ UNSUPPORTED_WEIGHT_UNIT  unidad fuera del enum cerrado
 - No expongas el puerto fuera de la red local sin protección.
 
 ## Añadir un nuevo comando de báscula
+
+Para usarlo desde el frontend **no hace falta tocar dtmi4**: basta con el
+evento `command`. Solo si dtmi4 debe usarlo por su cuenta (como el bucle
+`READ`):
 
 1. Añade un método en `Scale` que llame a `this.writeCommand("CMD")` y procese
    la respuesta.

@@ -6,6 +6,7 @@ import { buildDataPayload, buildStatusPayload } from './payloads';
 import { createOkHandler } from './handlers/ok-handler';
 import { createErrorHandler } from './handlers/error-handler';
 import { createZeroHandler } from './handlers/zero-handler';
+import { createCommandHandler } from './handlers/command-handler';
 
 const DEFAULT_DATA_INTERVAL_MS = 1000;
 const DEFAULT_MAX_CLIENTS = 1;
@@ -83,6 +84,7 @@ class SocketServer {
     socket.on(SOCKET_EVENTS.OK, createOkHandler(this.armari, socket));
     socket.on(SOCKET_EVENTS.ERROR, createErrorHandler(this.armari, socket));
     socket.on(SOCKET_EVENTS.ZERO, createZeroHandler(this.armari, socket));
+    socket.on(SOCKET_EVENTS.COMMAND, createCommandHandler(this.armari, socket));
     socket.on('disconnect', () => this.handleDisconnection(socket));
   }
 

@@ -44,6 +44,14 @@ class Armari {
     console.log("Socket.IO 'zero' received");
     this.device?.zero();
   }
+
+  // Free command from the frontend (proxy): the frame is sent as is (the
+  // client adds any checksum) plus the line terminator. Resolves with the
+  // raw answer of the scale, or null when it does not answer.
+  handleCommand(command, endLine) {
+    console.log(`Socket.IO 'command' received: ${JSON.stringify(command)}`);
+    return this.device.writeCommand(command, endLine);
+  }
 }
 
 export default Armari;

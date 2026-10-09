@@ -110,6 +110,17 @@ describe('Scale', () => {
     await expect(read).resolves.toBe('ST,GS,0.0,kg\r\n');
   });
 
+  it('sends a free command as is with a custom terminator and returns the raw answer', async () => {
+    const scale = createScale();
+
+    const pending = scale.writeCommand('SN', '\r');
+    await nextTick();
+    expect(scale.interface.write).toHaveBeenCalledWith('SN\r');
+
+    scale.parseData('SN 123456789\r\n');
+    await expect(pending).resolves.toBe('SN 123456789\r\n');
+  });
+
   it('does not write while the interface is disconnected', async () => {
     const scale = createScale();
     scale.interface.isConnected = false;
@@ -132,6 +143,15 @@ describe('TestScale', () => {
     expect(answer).toMatch(/^(ST|US),GS,[\d.]+,kg\r\n$/);
     expect(scale.data).toMatchObject({ id: 'test', units: 'kg', mode: 'GS' });
     expect(scale.isConnected).toBe(true);
+  });
+
+  it('simulates free commands: READ/ZERO as the real scale, ERR otherwise', async () => {
+    const scale = new TestScale({ id: 'test', units: 'kg' });
+
+    await expect(scale.writeCommand('READ')).resolves.toMatch(/^(ST|US),GS,/);
+    await expect(scale.writeCommand('ZERO')).resolves.toBe('OK\r\n');
+    expect(scale.data.weight).toBe(0);
+    await expect(scale.writeCommand('SN')).resolves.toBe('ERR\r\n');
   });
 
   it('sets the weight to zero on ZERO', async () => {

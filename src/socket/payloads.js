@@ -79,3 +79,45 @@ export function validateOkPayload(payload) {
 export function validateErrorPayload(payload) {
   return validateIncomingPayload(payload);
 }
+
+// CommandPayload (frontend -> server): a free command forwarded to the
+// scale. The client sends the complete frame (checksum included, if the
+// protocol needs one); the server only appends the line terminator.
+export const COMMAND_MAX_LENGTH = 256;
+export const COMMAND_ID_MAX_LENGTH = 64;
+export const COMMAND_END_LINES = ['\r\n', '\r', '\n', ''];
+
+export function validateCommandPayload(payload) {
+  if (!isPlainObject(payload))
+    return { valid: false, error: ERROR_CODES.INVALID_PAYLOAD };
+
+  const { id, command, endLine } = payload;
+
+  const validId = (typeof id === 'string' && id.length > 0 && id.length <= COMMAND_ID_MAX_LENGTH)
+    || (typeof id === 'number' && Number.isFinite(id));
+  if (!validId)
+    return { valid: false, error: ERROR_CODES.INVALID_PAYLOAD };
+
+  // Line breaks would split the frame into several commands and break the
+  // one-command / one-answer pairing.
+  if (typeof command !== 'string' || command.length === 0
+      || command.length > COMMAND_MAX_LENGTH || /[\r\n]/.test(command))
+    return { valid: false, error: ERROR_CODES.INVALID_PAYLOAD };
+
+  if (endLine !== undefined && !COMMAND_END_LINES.includes(endLine))
+    return { valid: false, error: ERROR_CODES.INVALID_PAYLOAD };
+
+  return { valid: true, error: null };
+}
+
+// CommandAnswerPayload (server -> requesting client only). `answer` is the
+// raw text received from the scale, or null with an error code.
+export function buildCommandAnswerPayload(payload, answer, error = null) {
+  return {
+    id: isPlainObject(payload) ? payload.id ?? null : null,
+    command: isPlainObject(payload) && typeof payload.command === 'string' ? payload.command : null,
+    answer: answer ?? null,
+    error,
+    timestamp: new Date().toISOString(),
+  };
+}

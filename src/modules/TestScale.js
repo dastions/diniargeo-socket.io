@@ -56,6 +56,17 @@ class TestScale extends EventEmitter {
     return Promise.resolve("OK\r\n");
   }
 
+  // Free commands (simulated): READ and ZERO behave as on the real scale;
+  // any other command answers "ERR".
+  writeCommand(command) {
+    if (command === 'READ')
+      return this.read();
+    if (command === 'ZERO')
+      return this.zero();
+
+    return Promise.resolve("ERR\r\n");
+  }
+
   get data() {
     if (!this.reading)
       return null;
