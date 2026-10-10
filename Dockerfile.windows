@@ -1,0 +1,46 @@
+# escape=`
+
+# Native Windows container (process isolation) for Windows 10 IoT Enterprise
+# LTSC x64. The base image build must match the host build:
+#   LTSC 2019 (build 17763) -> ltsc2019 (default)
+# Build and run it on the Windows host itself (see README).
+ARG WINDOWS_VERSION=ltsc2019
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
+
+SHELL ["powershell", "-NoProfile", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Node.js from nodejs.org, checked against SHASUMS256.txt. Empty
+# NODE_VERSION = latest 22.x; set it (e.g. 22.12.0) for reproducible builds.
+ARG NODE_MAJOR=22
+ARG NODE_VERSION=
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
+    if ($env:NODE_VERSION) { $base = 'https://nodejs.org/dist/v' + $env:NODE_VERSION } `
+    else { $base = 'https://nodejs.org/dist/latest-v' + $env:NODE_MAJOR + '.x' }; `
+    $sums = (Invoke-WebRequest -UseBasicParsing ($base + '/SHASUMS256.txt')).Content; `
+    $match = [regex]::Match($sums, '(?m)^([0-9a-f]{64})\s+(node-v[\d.]+-win-x64)\.zip\s*$'); `
+    if (-not $match.Success) { throw 'win-x64 zip not found in ' + $base }; `
+    $hash = $match.Groups[1].Value; $name = $match.Groups[2].Value; `
+    Invoke-WebRequest -UseBasicParsing ($base + '/' + $name + '.zip') -OutFile node.zip; `
+    if ((Get-FileHash node.zip -Algorithm SHA256).Hash -ne $hash) { throw 'Node.js checksum mismatch' }; `
+    Expand-Archive node.zip -DestinationPath C:\; `
+    Rename-Item ('C:\' + $name) C:\nodejs; `
+    Remove-Item node.zip; `
+    setx /M PATH ($env:PATH + ';C:\nodejs') | Out-Null
+
+WORKDIR C:\app
+
+# serialport ships win32-x64 prebuilt bindings: no build tools needed.
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY src src
+COPY .babelrc .
+RUN npm run build
+
+RUN Copy-Item -Recurse -Force dist\* .; `
+    New-Item -ItemType Directory database | Out-Null; `
+    Remove-Item -Recurse -Force src
+
+EXPOSE 3001
+
+CMD ["node", "."]

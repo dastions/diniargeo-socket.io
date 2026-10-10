@@ -27,7 +27,7 @@ class SocketServer {
     this.maxClients = parseInt(params.maxClients) || DEFAULT_MAX_CLIENTS;
     this.allowedOrigins = (params.allowedOrigins || '')
       .split(',')
-      .map((origin) => origin.trim())
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
       .filter(Boolean);
 
     this.clients = new Set();
@@ -37,6 +37,7 @@ class SocketServer {
 
     this.io = new Server(params.httpServer, {
       cors: { origin: this.allowedOrigins },
+      allowRequest: this.originCheck.bind(this),
     });
 
     this.io.use(authMiddleware);
@@ -47,6 +48,20 @@ class SocketServer {
     this.startDataInterval();
 
     SocketServer.instance = this;
+  }
+
+  // Browsers do not apply CORS to WebSocket upgrades, so `cors` alone does
+  // not stop another site from opening a socket: the Origin header is checked
+  // on every handshake. Requests without Origin (non-browser clients) are let
+  // through: they can forge it anyway and still need the device token.
+  originCheck(req, callback) {
+    const origin = req.headers.origin;
+
+    if (!origin || this.allowedOrigins.includes(origin))
+      return callback(null, true);
+
+    console.log(`Socket.IO: connection rejected (${ERROR_CODES.FORBIDDEN_ORIGIN}: ${origin})`);
+    callback(ERROR_CODES.FORBIDDEN_ORIGIN, false);
   }
 
   // Rejects the handshake when the plan limit is reached, so the client

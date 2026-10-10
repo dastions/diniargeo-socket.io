@@ -111,7 +111,7 @@ Configure your `.env` following `.envsample`. Never publish real values.
 | Variable | Description |
 |---|---|
 | `DEVICE_SOCKET_TOKEN` | Device token required on every handshake. **If missing, the Socket.IO server does not start.** |
-| `SOCKET_ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins. Never `*`. |
+| `SOCKET_ALLOWED_ORIGINS` | Comma-separated list of allowed origins (e.g. `https://dosage-app.dastions.com`). Checked on every handshake, WebSocket included. Never `*`. |
 | `SOCKET_MAX_CLIENTS` | Simultaneous clients: `1` (Base plan), `2` (Pro), `3` (Enterprise). Default `1`. |
 | `SOCKET_DATA_INTERVAL_MS` | Live weight emission interval (ms). Default `1000`. |
 | `SSL_KEY_PATH` / `SSL_CERT_PATH` | TLS key/certificate paths. With them the socket is served over **WSS**. |
@@ -259,6 +259,7 @@ Error codes returned by the server:
 ```text
 UNAUTHORIZED             invalid or missing token (handshake)
 MAX_CLIENTS_REACHED      plan client limit reached (handshake)
+FORBIDDEN_ORIGIN         Origin not in SOCKET_ALLOWED_ORIGINS (handshake, HTTP 403; server log only)
 INVALID_PAYLOAD          malformed incoming payload
 UNSUPPORTED_WEIGHT_UNIT  unit outside the closed enum
 NO_RESPONSE / DISCONNECTED / DEVICE_UNAVAILABLE   only in command_answer
@@ -270,7 +271,11 @@ NO_RESPONSE / DISCONNECTED / DEVICE_UNAVAILABLE   only in command_answer
   lives only in `.env`; it is never logged nor sent in the URL.
 - Without `DEVICE_SOCKET_TOKEN` the server does not start: there is no
   unauthenticated mode.
-- CORS restricted to `SOCKET_ALLOWED_ORIGINS`.
+- Origin restricted to `SOCKET_ALLOWED_ORIGINS`: CORS for HTTP and an
+  `Origin` header check on every handshake, because browsers do not apply
+  CORS to WebSockets. A browser on any other site is rejected even with a
+  valid token. Requests without `Origin` (non-browser clients) still need
+  the token.
 - Use WSS (TLS) in production: browsers block `ws://` from HTTPS frontends.
 - Do not expose the port outside the local network without protection.
 

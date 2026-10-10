@@ -35,11 +35,12 @@ describe('SocketServer', () => {
   let port;
   let clients;
 
-  function connectClient(auth) {
+  function connectClient(auth, origin) {
     const client = ioClient(`http://127.0.0.1:${port}`, {
       auth,
       transports: ['websocket'],
       reconnection: false,
+      extraHeaders: origin ? { origin } : undefined,
     });
     clients.push(client);
     return client;
@@ -57,7 +58,7 @@ describe('SocketServer', () => {
         armari,
         maxClients: 1,
         dataIntervalMs: 50,
-        allowedOrigins: 'http://localhost:5173',
+        allowedOrigins: 'http://localhost:5173, https://app.example.com/',
       });
       done();
     });
@@ -89,6 +90,25 @@ describe('SocketServer', () => {
     const client = connectClient({ token: 'wrong-token' });
     const error = await waitFor(client, 'connect_error');
     expect(error.message).toBe(ERROR_CODES.UNAUTHORIZED);
+  });
+
+  it('accepts a connection from an allowed origin', async () => {
+    const client = connectClient({ token: TOKEN }, 'http://localhost:5173');
+    await waitFor(client, 'connect');
+    expect(client.connected).toBe(true);
+  });
+
+  it('ignores a trailing slash in the configured origins', async () => {
+    const client = connectClient({ token: TOKEN }, 'https://app.example.com');
+    await waitFor(client, 'connect');
+    expect(client.connected).toBe(true);
+  });
+
+  it('rejects a connection from a non-allowed origin even with a valid token', async () => {
+    const client = connectClient({ token: TOKEN }, 'https://evil.example.com');
+    await waitFor(client, 'connect_error');
+    expect(client.connected).toBe(false);
+    expect(armari.handleOk).not.toHaveBeenCalled();
   });
 
   it('emits the current status to a client right after connecting', async () => {
