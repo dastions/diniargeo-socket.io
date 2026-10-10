@@ -1,127 +1,128 @@
-# DTM i4.0 — Aplicación local de báscula (dtmi4-socket)
+# DTM i4.0 — Local scale application (dtmi4-socket)
 
-Aplicación Node.js instalada localmente junto a cada báscula. Lee el peso de
-la báscula mediante comandos serie y expone un **servidor Socket.IO** para que
-la pantalla del operario de la aplicación web *Batch Control Dosage* reciba el
-peso en tiempo real y pueda hacer cero.
+Node.js application installed locally next to each scale. It reads the weight
+from the scale through serial commands and exposes a **Socket.IO server** so
+that the operator screen of the *Batch Control Dosage* web application receives
+the weight in real time and can zero the scale.
 
 ```text
-Báscula (hardware)
-   ↑↓  comandos READ / ZERO  (puerto serie o TCP)
-Clase Scale (src/modules/Scale.js)
+Scale (hardware)
+   ↑↓  READ / ZERO commands  (serial port or TCP)
+Scale class (src/modules/Scale.js)
    ↑↓
 Armari (src/modules/index.js)
    ↑↓
-Servidor Socket.IO (src/socket/SocketServer.js)
+Socket.IO server (src/socket/SocketServer.js)
    ↑↓  WS / WSS
-Frontend del operario (dosage-frontend)
+Operator frontend (dosage-frontend)
 ```
 
-El frontend obtiene `socket_url` y el token del dispositivo desde dosage-api
-(`GET /api/scales`, `POST /api/scales/:id/token`) y se conecta directamente
-al servidor Socket.IO de esta aplicación.
+The frontend gets the `socket_url` and the device token from dosage-api
+(`GET /api/scales`, `POST /api/scales/:id/token`) and connects directly to
+this application's Socket.IO server.
 
-**La tara es solo del frontend**: la báscula siempre reporta su peso leído y
-la aplicación web calcula el neto localmente.
+**Tare is frontend-only**: the scale always reports the weight it reads and
+the web application computes the net weight locally.
 
-## Modelos (`MACHINE_MODEL`)
+## Models (`MACHINE_MODEL`)
 
-| Valor | Dispositivo |
+| Value | Device |
 |---|---|
-| *(vacío)* | Báscula real: clase `Scale`, comandos `READ` / `ZERO` |
-| `test` | Simulador sin interfaz: `READ` devuelve un peso aleatorio y `ZERO` lo pone a cero |
+| *(empty)* | Real scale: `Scale` class, `READ` / `ZERO` commands |
+| `test` | Simulator with no interface: `READ` returns a random weight and `ZERO` sets it to zero |
 
-## Comunicación con la báscula (clase `Scale`)
+## Scale communication (`Scale` class)
 
-La interfaz se elige según el `.env`: con `SERIAL_COM` se usa
-`SerialConnection`; si no, `DEVICE_IP`/`DEVICE_PORT` con `SocketConnection`
-(TCP). Sea cual sea la interfaz, la báscula se controla con comandos de texto
-terminados en `\r\n`, sin checksum (`Scale.writeCommand`). Cada comando
-devuelve la respuesta en crudo (línea terminada en `\n`) o `null` si no hay
-respuesta en `SCALE_RESPONSE_TIMEOUT_MS`.
+The interface is chosen from the `.env`: with `SERIAL_COM`, `SerialConnection`
+is used; otherwise `DEVICE_IP`/`DEVICE_PORT` with `SocketConnection` (TCP).
+Whatever the interface, the scale is controlled with text commands terminated
+by `\r\n`, with no checksum (`Scale.writeCommand`). Each command returns the
+raw answer (a line terminated by `\n`) or `null` if there is no answer within
+`SCALE_RESPONSE_TIMEOUT_MS`.
 
-| Comando | Respuesta | Uso |
+| Command | Answer | Usage |
 |---|---|---|
-| `READ` | `ST,GS,     0.0,kg\r\n` | Se envía en bucle cada `SCALE_READ_INTERVAL_MS` y actualiza la lectura en memoria |
-| `ZERO` | cualquier línea | Puesta a cero solicitada desde el frontend (sin respuesta al frontend) |
+| `READ` | `ST,GS,     0.0,kg\r\n` | Sent in a loop every `SCALE_READ_INTERVAL_MS`; updates the in-memory reading |
+| `ZERO` | any line | Zeroing requested from the frontend (no answer to the frontend) |
 
-Formato de `READ`: `estabilidad,modo,valor,unidades`.
-- Estabilidad: `ST` estable, `US` inestable. Se envía al frontend como `status`.
-- Modo: `GS` bruto, `NT` neto. Se envía como `mode`.
-- `weight` es siempre el valor leído.
+`READ` format: `stability,mode,value,units`.
+- Stability: `ST` stable, `US` unstable. Sent to the frontend as `status`.
+- Mode: `GS` gross, `NT` net. Sent as `mode`.
+- `weight` is always the value read.
 
-Los comandos se encolan: nunca hay dos comandos esperando respuesta a la vez.
-Si un comando agota el timeout, la báscula se marca como **sin respuesta**: el
-status pasa a `no_response` (aunque la conexión TCP/serie siga abierta) y se
-dejan de emitir lecturas `data` hasta que vuelva a responder.
+Commands are queued: there are never two commands awaiting an answer at the
+same time. If a command times out, the scale is marked as **not responding**:
+the status becomes `no_response` (even if the TCP/serial connection is still
+open) and `data` readings stop being emitted until it answers again.
 
-## Estructura
+## Structure
 
 ```text
 src/
-├── index.js                 Punto de entrada: http(s).Server + Armari + Socket.IO
+├── index.js                 Entry point: http(s).Server + Armari + Socket.IO
 ├── modules/
-│   ├── index.js             Armari: crea la báscula y recibe los eventos del socket
-│   ├── Scale.js             Báscula real (READ / ZERO)
-│   ├── TestScale.js         Báscula simulada (MACHINE_MODEL=test)
+│   ├── index.js             Armari: creates the scale and receives socket events
+│   ├── Scale.js             Real scale (READ / ZERO)
+│   ├── TestScale.js         Simulated scale (MACHINE_MODEL=test)
 │   └── protocols/           SerialConnection / SocketConnection
-└── socket/                  Servidor Socket.IO
-    ├── SocketServer.js      Ciclo de vida, auth, límite de clientes, emisiones
-    ├── events.js            Nombres de eventos, estados y unidades permitidas
-    ├── auth.js              Validación del token (comparación timing-safe)
-    ├── payloads.js          Construcción y validación de payloads
-    └── handlers/            Handlers de eventos entrantes (ok, error, zero, command)
+└── socket/                  Socket.IO server
+    ├── SocketServer.js      Lifecycle, auth, client limit, emissions
+    ├── events.js            Event names, statuses and allowed units
+    ├── auth.js              Token validation (timing-safe comparison)
+    ├── payloads.js          Payload building and validation
+    └── handlers/            Incoming event handlers (ok, error, zero, command)
 ```
 
-## Requisitos e instalación
+## Requirements and installation
 
-- Node.js 22+ (la imagen Docker de producción usa `arm32v7/node:22-bookworm` para RevPi PLC).
+- Node.js 22+ (the Docker image uses the multi-arch `node:22-bookworm`:
+  `linux/arm/v7` for RevPi PLC, `linux/amd64` for Windows x64 PCs).
 
 ```bash
 npm install
 ```
 
-Configura tu `.env` siguiendo `.envsample`. Nunca publiques valores reales.
+Configure your `.env` following `.envsample`. Never publish real values.
 
-## Variables de entorno
+## Environment variables
 
-### Báscula
+### Scale
 
-| Variable | Descripción |
+| Variable | Description |
 |---|---|
-| `MACHINE_MODEL` | `test` (simulador) o vacío (báscula real) |
-| `BASCULA_ID` / `BASCULA_NAME` | Identificador y nombre del dispositivo |
-| `BASCULA_UNITS` | Unidad del simulador (la báscula real la reporta en cada `READ`) |
-| `DEVICE_IP` / `DEVICE_PORT` | Conexión TCP a la báscula |
-| `SERIAL_COM`, `SERIAL_BAUDRATE`, `SERIAL_DATABITS`, `SERIAL_STOPBITS`, `SERIAL_PARITY`, `SERIAL_REGEX` | Conexión serie (tiene prioridad sobre TCP) |
-| `SCALE_READ_INTERVAL_MS` | Intervalo entre comandos `READ` (por defecto `SOCKET_DATA_INTERVAL_MS` o 1000) |
-| `SCALE_RESPONSE_TIMEOUT_MS` | Espera máxima de respuesta de la báscula (por defecto 2000) |
-| `HTTP_PORT` | Puerto del servidor local (Socket.IO) |
-| `DEBUG` | `true` registra cada comando `[WRITE]` y respuesta `[ANSWER]` |
+| `MACHINE_MODEL` | `test` (simulator) or empty (real scale) |
+| `BASCULA_ID` / `BASCULA_NAME` | Device identifier and name |
+| `BASCULA_UNITS` | Simulator units (the real scale reports them in each `READ`) |
+| `DEVICE_IP` / `DEVICE_PORT` | TCP connection to the scale |
+| `SERIAL_COM`, `SERIAL_BAUDRATE`, `SERIAL_DATABITS`, `SERIAL_STOPBITS`, `SERIAL_PARITY`, `SERIAL_REGEX` | Serial connection (takes precedence over TCP) |
+| `SCALE_READ_INTERVAL_MS` | Interval between `READ` commands (defaults to `SOCKET_DATA_INTERVAL_MS` or 1000) |
+| `SCALE_RESPONSE_TIMEOUT_MS` | Max wait for a scale answer (default 2000) |
+| `HTTP_PORT` | Local server port (Socket.IO) |
+| `DEBUG` | `true` logs every `[WRITE]` command and `[ANSWER]` |
 
-### Servidor Socket.IO
+### Socket.IO server
 
-| Variable | Descripción |
+| Variable | Description |
 |---|---|
-| `DEVICE_SOCKET_TOKEN` | Token del dispositivo exigido en cada handshake. **Si falta, el servidor Socket.IO no arranca.** |
-| `SOCKET_ALLOWED_ORIGINS` | Lista de orígenes CORS permitidos, separados por comas. Nunca `*`. |
-| `SOCKET_MAX_CLIENTS` | Clientes simultáneos: `1` (plan Base), `2` (Pro), `3` (Enterprise). Por defecto `1`. |
-| `SOCKET_DATA_INTERVAL_MS` | Cadencia de emisión del peso en vivo (ms). Por defecto `1000`. |
-| `SSL_KEY_PATH` / `SSL_CERT_PATH` | Rutas de clave/certificado TLS. Con ellas el socket se sirve por **WSS**. |
+| `DEVICE_SOCKET_TOKEN` | Device token required on every handshake. **If missing, the Socket.IO server does not start.** |
+| `SOCKET_ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins. Never `*`. |
+| `SOCKET_MAX_CLIENTS` | Simultaneous clients: `1` (Base plan), `2` (Pro), `3` (Enterprise). Default `1`. |
+| `SOCKET_DATA_INTERVAL_MS` | Live weight emission interval (ms). Default `1000`. |
+| `SSL_KEY_PATH` / `SSL_CERT_PATH` | TLS key/certificate paths. With them the socket is served over **WSS**. |
 
-## Ejecución
+## Running
 
-| Comando | Uso |
+| Command | Usage |
 |---|---|
-| `npm run slave` | Desarrollo (nodemon + babel-node, `.env`) |
-| `npm run build` | Compilación de producción (ncc + babel) |
-| `npm run prod` | Producción (`node .` sobre el build) |
+| `npm run slave` | Development (nodemon + babel-node, `.env`) |
+| `npm run build` | Production build (ncc + babel) |
+| `npm run prod` | Production (`node .` on the build) |
 | `npm test` | Tests (Jest) |
 
-### Desarrollo sin hardware (báscula simulada)
+### Development without hardware (simulated scale)
 
-Los bindings nativos de `serialport` se cargan de forma perezosa, así que el
-simulador funciona en cualquier máquina de desarrollo:
+The native `serialport` bindings are lazy-loaded, so the simulator works on
+any development machine:
 
 ```bash
 MACHINE_MODEL=test BASCULA_ID=scale-1 BASCULA_UNITS=kg HTTP_PORT=3000 \
@@ -129,31 +130,31 @@ DEVICE_SOCKET_TOKEN=dev-token SOCKET_ALLOWED_ORIGINS=http://localhost:5173 \
 npx babel-node src/index.js
 ```
 
-En la aplicación web, configura la báscula con
-`socket_url = http://localhost:3000` y el mismo token (`dev-token`).
+In the web application, configure the scale with
+`socket_url = http://localhost:3000` and the same token (`dev-token`).
 
-### Varias balanzas en desarrollo (docker-compose.dev.yml)
+### Several scales in development (docker-compose.dev.yml)
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Levanta `slave-a` (puerto **3030**) y `slave-b` (**3031**), ambos con
-`MACHINE_MODEL=test`, el `.env` compartido (mismo `DEVICE_SOCKET_TOKEN`) y
-datos cada 300 ms. En la aplicación web, crea dos básculas con
-`socket_url = http://localhost:3030` y `http://localhost:3031` y el mismo
-token. Si cambian las dependencias:
-`docker compose -f docker-compose.dev.yml down -v` (reinstala al subir).
+Starts `slave-a` (port **3030**) and `slave-b` (**3031**), both with
+`MACHINE_MODEL=test`, the shared `.env` (same `DEVICE_SOCKET_TOKEN`) and data
+every 300 ms. In the web application, create two scales with
+`socket_url = http://localhost:3030` and `http://localhost:3031` and the same
+token. If dependencies change:
+`docker compose -f docker-compose.dev.yml down -v` (reinstalls on the next up).
 
-## Eventos Socket.IO
+## Socket.IO events
 
-Todos los eventos exigen conexión autenticada. Un socket sin autenticar se
-rechaza en el handshake.
+All events require an authenticated connection. An unauthenticated socket is
+rejected during the handshake.
 
-### `data` — Servidor local → Frontend
+### `data` — Local server → Frontend
 
-Última lectura `READ`, emitida cada `SOCKET_DATA_INTERVAL_MS` mientras la
-báscula está conectada y respondiendo.
+Latest `READ` reading, emitted every `SOCKET_DATA_INTERVAL_MS` while the scale
+is connected and responding.
 
 ```json
 {
@@ -168,124 +169,123 @@ báscula está conectada y respondiendo.
 }
 ```
 
-Validación: `weight` debe ser un número finito y `units` pertenecer al enum
-cerrado (`mg`, `dg`, `g`, `kg`, `t`, `oz`, `lb`). Las lecturas con unidad no
-soportada se descartan y se registran (`UNSUPPORTED_WEIGHT_UNIT`).
+Validation: `weight` must be a finite number and `units` must belong to the
+closed enum (`mg`, `dg`, `g`, `kg`, `t`, `oz`, `lb`). Readings with an
+unsupported unit are discarded and logged (`UNSUPPORTED_WEIGHT_UNIT`).
 
-### `status` — Servidor local → Frontend
+### `status` — Local server → Frontend
 
-Estado del dispositivo. Se emite al cambiar y a cada cliente recién conectado.
+Device status. Emitted on change and to every newly connected client.
 
 ```json
 { "status": "connected", "timestamp": "2026-10-08T08:00:00.000Z" }
 ```
 
-| Valor | Significado |
+| Value | Meaning |
 |---|---|
-| `starting` | Arrancando |
-| `connected` | Interfaz conectada y la báscula responde |
-| `disconnected` | Interfaz (TCP/serie) caída |
-| `no_response` | Interfaz conectada pero la báscula no responde a `READ`/`ZERO` |
-| `error` | Sin dispositivo configurado o fallo interno |
+| `starting` | Starting up |
+| `connected` | Interface connected and the scale is responding |
+| `disconnected` | Interface (TCP/serial) down |
+| `no_response` | Interface connected but the scale does not answer `READ`/`ZERO` |
+| `error` | No device configured or internal failure |
 
-### `zero` — Frontend → Servidor local
+### `zero` — Frontend → Local server
 
-El operario solicita puesta a cero. Payload: objeto plano (`{}`). Se envía el
-comando `ZERO` a la báscula; el frontend no recibe respuesta (si la báscula
-no contesta, el status pasa a `no_response`).
+The operator requests zeroing. Payload: plain object (`{}`). The `ZERO`
+command is sent to the scale; the frontend gets no answer (if the scale does
+not answer, the status becomes `no_response`).
 
-### `command` → `command_answer` — Comandos libres (proxy)
+### `command` → `command_answer` — Free commands (proxy)
 
-Permite enviar **cualquier comando** a la báscula desde el frontend sin tocar
-dtmi4. El servidor reenvía la trama tal cual y le añade solo el terminador.
-**Si el protocolo necesita checksum, lo calcula el cliente** y lo incluye en
-`command`. La respuesta se envía **solo al cliente que lo pidió**.
+Allows sending **any command** to the scale from the frontend without changing
+dtmi4. The server forwards the frame as is and only appends the terminator.
+**If the protocol needs a checksum, the client computes it** and includes it
+in `command`. The answer is sent **only to the requesting client**.
 
-Frontend → servidor:
+Frontend → server:
 
 ```json
 { "id": "c-42", "command": "READ", "endLine": "\r\n" }
 ```
 
-| Campo | Descripción |
+| Field | Description |
 |---|---|
-| `id` | Obligatorio. String (máx. 64) o número; se devuelve tal cual para emparejar la respuesta |
-| `command` | Obligatorio. Trama completa (máx. 256 caracteres, sin `\r` ni `\n`) |
-| `endLine` | Opcional: `"\r\n"` (por defecto), `"\n\r"`, `"\r"`, `"\n"` o `""` |
+| `id` | Required. String (max 64) or number; returned as is to match the answer |
+| `command` | Required. Full frame (max 256 characters, no `\r` or `\n`) |
+| `endLine` | Optional: `"\r\n"` (default), `"\n\r"`, `"\r"`, `"\n"` or `""` |
 
-Servidor → cliente:
+Server → client:
 
 ```json
 { "id": "c-42", "command": "READ", "answer": "ST,GS,     0.0,kg\r\n", "error": null, "timestamp": "..." }
 ```
 
-`answer` es el texto recibido de la báscula en crudo, hasta el `\n`. Si no
-hay respuesta, `answer` es `null` y `error` vale:
+`answer` is the raw text received from the scale, up to the `\n`. If there is
+no answer, `answer` is `null` and `error` is:
 
-| `error` | Causa |
+| `error` | Cause |
 |---|---|
-| `INVALID_PAYLOAD` | Payload mal formado |
-| `DISCONNECTED` | Interfaz TCP/serie caída (no se envía nada) |
-| `NO_RESPONSE` | Sin respuesta en `SCALE_RESPONSE_TIMEOUT_MS` (además el status pasa a `no_response`) |
-| `DEVICE_UNAVAILABLE` | Sin báscula configurada o fallo interno |
+| `INVALID_PAYLOAD` | Malformed payload |
+| `DISCONNECTED` | TCP/serial interface down (nothing is sent) |
+| `NO_RESPONSE` | No answer within `SCALE_RESPONSE_TIMEOUT_MS` (the status also becomes `no_response`) |
+| `DEVICE_UNAVAILABLE` | No scale configured or internal failure |
 
-Sincronización:
-- Los comandos (libres y el bucle `READ`) pasan por una **cola única** en
-  `Scale`, así que nunca hay dos esperando respuesta en la báscula y las
-  respuestas no se mezclan.
-- El cliente empareja cada `command_answer` por su `id`.
-- Cada comando espera su turno en la cola, así que un cliente con muchos
-  comandos encolados ve aumentar la latencia.
+Synchronization:
+- Commands (free ones and the `READ` loop) go through a **single queue** in
+  `Scale`, so there are never two awaiting an answer from the scale and the
+  answers never get mixed up.
+- The client matches each `command_answer` by its `id`.
+- Each command waits for its turn in the queue, so a client with many queued
+  commands sees latency increase.
 
-Seguridad: no hay lista blanca. Cualquier cliente autenticado con el token
-puede enviar cualquier comando a la báscula, incluidos los de configuración o
-escritura de tablas.
+Security: there is no allowlist. Any client authenticated with the token can
+send any command to the scale, including configuration or table-write
+commands.
 
-### `ok` / `error` — Frontend → Servidor local
+### `ok` / `error` — Frontend → Local server
 
-La aplicación web ha aceptado / rechazado una pesada. Se validan (objeto plano
-serializable; si incluye `weight`/`units`, deben ser coherentes con el enum)
-y solo se registran en el log (`Armari.handleOk` / `Armari.handleError`).
+The web application has accepted / rejected a weighing. They are validated
+(plain serializable object; if it includes `weight`/`units`, they must match
+the enum) and only logged (`Armari.handleOk` / `Armari.handleError`).
 
-Códigos de error que responde el servidor:
+Error codes returned by the server:
 
 ```text
-UNAUTHORIZED             token inválido o ausente (handshake)
-MAX_CLIENTS_REACHED      límite de clientes del plan alcanzado (handshake)
-INVALID_PAYLOAD          payload entrante mal formado
-UNSUPPORTED_WEIGHT_UNIT  unidad fuera del enum cerrado
-NO_RESPONSE / DISCONNECTED / DEVICE_UNAVAILABLE   solo en command_answer
+UNAUTHORIZED             invalid or missing token (handshake)
+MAX_CLIENTS_REACHED      plan client limit reached (handshake)
+INVALID_PAYLOAD          malformed incoming payload
+UNSUPPORTED_WEIGHT_UNIT  unit outside the closed enum
+NO_RESPONSE / DISCONNECTED / DEVICE_UNAVAILABLE   only in command_answer
 ```
 
-## Seguridad
+## Security
 
-- Autenticación por token en cada handshake (comparación timing-safe). El
-  token vive solo en `.env`, nunca se registra en logs ni viaja en la URL.
-- Sin `DEVICE_SOCKET_TOKEN` el servidor no arranca: no existe modo sin
-  autenticación.
-- CORS restringido a `SOCKET_ALLOWED_ORIGINS`.
-- Usa WSS (TLS) en producción: los navegadores bloquean `ws://` desde
-  frontends HTTPS.
-- No expongas el puerto fuera de la red local sin protección.
+- Token authentication on every handshake (timing-safe comparison). The token
+  lives only in `.env`; it is never logged nor sent in the URL.
+- Without `DEVICE_SOCKET_TOKEN` the server does not start: there is no
+  unauthenticated mode.
+- CORS restricted to `SOCKET_ALLOWED_ORIGINS`.
+- Use WSS (TLS) in production: browsers block `ws://` from HTTPS frontends.
+- Do not expose the port outside the local network without protection.
 
-## Añadir un nuevo comando de báscula
+## Adding a new scale command
 
-Para usarlo desde el frontend **no hace falta tocar dtmi4**: basta con el
-evento `command`. Solo si dtmi4 debe usarlo por su cuenta (como el bucle
-`READ`):
+To use it from the frontend **there is no need to touch dtmi4**: the
+`command` event is enough. Only if dtmi4 must use it on its own (like the
+`READ` loop):
 
-1. Añade un método en `Scale` que llame a `this.writeCommand("CMD")` y procese
-   la respuesta.
-2. Añade el equivalente simulado en `TestScale`.
-3. Si lo dispara el frontend: nombre en `SOCKET_EVENTS` (`src/socket/events.js`),
-   handler en `src/socket/handlers/`, registro en
-   `SocketServer.registerSocketHandlers` y método en `Armari`.
-4. Añade tests en `src/modules/__tests__/` y `src/socket/__tests__/`.
+1. Add a method in `Scale` that calls `this.writeCommand("CMD")` and processes
+   the answer.
+2. Add the simulated equivalent in `TestScale`.
+3. If the frontend triggers it: name in `SOCKET_EVENTS` (`src/socket/events.js`),
+   handler in `src/socket/handlers/`, registration in
+   `SocketServer.registerSocketHandlers` and method in `Armari`.
+4. Add tests in `src/modules/__tests__/` and `src/socket/__tests__/`.
 
-## Despliegue con Docker (RevPi)
+## Docker deployment (RevPi)
 
 ```bash
-docker build -t {imagen}:{versión} --platform linux/arm/v7 .
+docker build -t {image}:{version} --platform linux/arm/v7 .
 ```
 
 ```bash
@@ -296,8 +296,67 @@ docker run -d \
   --device=/dev/ttyUSB0:/dev/ttyUSB0 \
   --env-file ./.env \
   --network=host \
-  {imagen}:{versión}
+  {image}:{version}
 ```
 
-`--network=host` mantiene accesible el puerto local (`HTTP_PORT`) del
-servidor Socket.IO sin mapeos adicionales.
+`--network=host` keeps the Socket.IO server's local port (`HTTP_PORT`)
+reachable without extra mappings.
+
+## Deployment on a Windows 10 IoT Enterprise LTSC PC (x64)
+
+There are two options depending on the Docker engine installed on the PC.
+
+### Option A — Linux container (Docker Desktop / Docker on WSL2)
+
+Same image as the RevPi, built for `linux/amd64` (CI publishes it as
+`ghcr.io/<repo>:amd64_<tag>`):
+
+```bash
+docker build -t {image}:{version} --platform linux/amd64 .
+```
+
+```bash
+docker run -d --name dtmi4 --restart always \
+  --log-opt max-size=10m --log-opt max-file=5 \
+  --env-file ./.env -p 3030:3030 \
+  {image}:{version}
+```
+
+- Use `-p {HTTP_PORT}:{HTTP_PORT}` instead of `--network=host`.
+- Scale over TCP (`DEVICE_IP`/`DEVICE_PORT`): works out of the box.
+- Scale over a serial port: WSL2 does not see Windows `COMx` ports. Attach
+  the USB-serial adapter to WSL2 with
+  [usbipd-win](https://github.com/dorssel/usbipd-win)
+  (`usbipd bind` + `usbipd attach --wsl`), then use
+  `--device=/dev/ttyUSB0` and `SERIAL_COM=/dev/ttyUSB0`.
+
+### Option B — Native Windows container (`Dockerfile.windows`)
+
+For Docker Engine in *Windows containers* mode. It can use Windows `COMx`
+ports directly, but **the base image must match the host Windows build**
+(process isolation):
+
+| Host | Build | `WINDOWS_VERSION` |
+|---|---|---|
+| Windows 10 IoT Enterprise LTSC 2019 | 17763 | `ltsc2019` (default) |
+| Windows 10 IoT Enterprise LTSC 2021 | 19044 | no 19044 base image exists: use option A |
+
+Check it with `winver` or `[Environment]::OSVersion.Version`. The image is
+built on the PC itself (it cannot be built from Linux):
+
+```powershell
+docker build -f Dockerfile.windows -t {image}:{version}-win .
+```
+
+```powershell
+docker run -d --name dtmi4 --restart always `
+  --isolation=process `
+  --device "class/86E0D1E0-8089-11D0-9CE4-00AA0060FA48" `
+  --env-file .\.env -p 3030:3030 `
+  {image}:{version}-win
+```
+
+- `--device class/86E0D1E0-...` exposes the host COM ports (only with
+  `--isolation=process`); in the `.env`, `SERIAL_COM=COM3` (whichever
+  applies). If the scale is connected over TCP, `--device` is not needed.
+- `NODE_VERSION` (build-arg) pins the Node version; empty = latest 22.x.

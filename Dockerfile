@@ -1,4 +1,7 @@
-FROM arm32v7/node:22-bookworm
+# Multi-arch base: the platform decides the image (see README).
+#   RevPi / Raspberry:      --platform linux/arm/v7
+#   Windows x64 (WSL2/Linux containers): --platform linux/amd64
+FROM node:22-bookworm
 
 WORKDIR /app
 

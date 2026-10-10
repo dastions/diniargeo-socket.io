@@ -1,7 +1,10 @@
 # Release pipeline: fires on version tags (v1.2.3).
 #   1. test    — Jest suite
-#   2. docker  — linux/arm/v7 image (RevPi / Raspberry) pushed to GHCR as
-#                ghcr.io/<repo>:arm_<tag>
+#   2. docker  — pushed to GHCR:
+#                ghcr.io/<repo>:arm_<tag>    linux/arm/v7 (RevPi / Raspberry)
+#                ghcr.io/<repo>:amd64_<tag>  linux/amd64 (Windows x64 with WSL2)
+#   The native Windows container (Dockerfile.windows) is built on the target
+#   PC: its base image must match the host Windows build.
 name: Build and Push Docker image
 
 on:
@@ -53,10 +56,18 @@ jobs:
         id: tag
         run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (arm)
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/arm/v7
           push: true
           tags: ghcr.io/${{ github.repository }}:arm_${{ env.TAG }}
+
+      - name: Build and push Docker image (amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:amd64_${{ env.TAG }}
