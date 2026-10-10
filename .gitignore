@@ -11,3 +11,4 @@ backend/
 
 .env
 .env*
+docker-compose.wsl.yml

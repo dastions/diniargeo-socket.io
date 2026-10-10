@@ -1,8 +1,19 @@
 {
   "name": "dtm_i4",
   "version": "3.8.1",
+  "description": "Local Socket.IO bridge that reads Dini Argeo scales over serial/TCP and streams the weight in real time",
+  "author": "Digital Application Solutions SL (https://dastions.com)",
+  "homepage": "https://github.com/dastions/diniargeo-socket.io#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dastions/diniargeo-socket.io.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dastions/diniargeo-socket.io/issues",
+    "email": "support@dastions.com"
+  },
   "main": "index.js",
-  "license": "UNLICENSED",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "engines": {
     "node": ">=22"
   },

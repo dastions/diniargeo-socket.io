@@ -5,6 +5,12 @@ from the scale through serial commands and exposes a **Socket.IO server** so
 that the operator screen of the *Batch Control Dosage* web application receives
 the weight in real time and can zero the scale.
 
+Developed and maintained by **Digital Application Solutions SL**
+([dastions.com](https://dastions.com)). The source code is public and free for
+non-commercial use under the
+[PolyForm Noncommercial License 1.0.0](LICENSE.md); commercial use requires a
+license from Dastions (see [License](#license)).
+
 ```text
 Scale (hardware)
    ↑↓  READ / ZERO commands  (serial port or TCP)
@@ -360,3 +366,71 @@ docker run -d --name dtmi4 --restart always `
   `--isolation=process`); in the `.env`, `SERIAL_COM=COM3` (whichever
   applies). If the scale is connected over TCP, `--device` is not needed.
 - `NODE_VERSION` (build-arg) pins the Node version; empty = latest 22.x.
+
+## About Dastions
+
+dtmi4-socket is developed and maintained by
+**Digital Application Solutions SL** ([dastions.com](https://dastions.com)), a
+software company building digital applications for industry, including the
+*Batch Control Dosage* web application that this service is part of. We publish
+this code so the community can learn from it, connect their own scales and
+build on it.
+
+Need help integrating scales in your plant, a commercial license or a custom
+development? Contact us at support@dastions.com or visit
+[dastions.com](https://dastions.com).
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+before opening a pull request: it explains the workflow and the terms under
+which contributions are accepted.
+
+## License
+
+Copyright (c) 2026 Digital Application Solutions SL.
+
+This is **source-available** software, licensed under the
+[PolyForm Noncommercial License 1.0.0](LICENSE.md). It is not "open source"
+in the OSI sense because commercial use is not included.
+
+**Allowed free of charge** (noncommercial purposes):
+
+- Personal use, study, research, experiments, testing and hobby projects
+  without any anticipated commercial application.
+- Use by charitable organizations, educational institutions, public research
+  organizations, public safety or health organizations, environmental
+  protection organizations and government institutions.
+- Modifying the code and sharing copies or modified versions for those same
+  purposes, as long as the recipients also get the license terms and the
+  `Required Notice:` lines in [LICENSE.md](LICENSE.md).
+
+**Requires a commercial license**: any other use, in particular using
+dtmi4-socket in production at a company, to operate scales in industrial or
+business processes, as part of a product or service that is sold, or to
+provide services to third parties. To get one, contact
+support@dastions.com.
+
+The software is provided "as is", without any warranty, and Digital
+Application Solutions SL is not liable for any damages arising from its use,
+as far as the law allows. In particular, weight readings must be validated by
+the integrator before being used in any process where measurement errors may
+cause harm, financial loss or legal non-compliance (for example, legal
+metrology).
+
+This summary is for convenience only; in case of doubt, the full text of
+[LICENSE.md](LICENSE.md) prevails.
+
+### Trademarks
+
+Dastions is a trademark of Digital Application Solutions SL. Dini Argeo and
+other product or company names mentioned in this repository are trademarks of
+their respective owners and are used only to identify compatible devices. The
+license does not grant any right to use these trademarks.
+
+### Third-party software
+
+The npm dependencies of this project (such as Socket.IO, serialport and
+dotenv) are distributed under their own licenses, which can be found in each
+package. Those licenses apply to the respective dependencies, not to
+dtmi4-socket.
