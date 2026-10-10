@@ -1,4 +1,4 @@
-# Release pipeline: fires on version tags (v1.2.3).
+# Release pipeline: fires on any tag push.
 #   1. test    — Jest suite
 #   2. docker  — pushed to GHCR:
 #                ghcr.io/<repo>:arm_<tag>    linux/arm/v7 (RevPi / Raspberry)
@@ -9,7 +9,7 @@ name: Build and Push Docker image
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ['*']
 
 permissions:
   contents: read
