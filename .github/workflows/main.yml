@@ -57,7 +57,7 @@ jobs:
         run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Build and push Docker image (arm)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/arm/v7
@@ -65,7 +65,7 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:arm_${{ env.TAG }}
 
       - name: Build and push Docker image (amd64)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
