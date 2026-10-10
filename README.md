@@ -211,7 +211,7 @@ Frontend → servidor:
 |---|---|
 | `id` | Obligatorio. String (máx. 64) o número; se devuelve tal cual para emparejar la respuesta |
 | `command` | Obligatorio. Trama completa (máx. 256 caracteres, sin `\r` ni `\n`) |
-| `endLine` | Opcional: `"\r\n"` (por defecto), `"\r"`, `"\n"` o `""` |
+| `endLine` | Opcional: `"\r\n"` (por defecto), `"\n\r"`, `"\r"`, `"\n"` o `""` |
 
 Servidor → cliente:
 

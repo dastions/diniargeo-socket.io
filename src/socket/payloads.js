@@ -85,7 +85,7 @@ export function validateErrorPayload(payload) {
 // protocol needs one); the server only appends the line terminator.
 export const COMMAND_MAX_LENGTH = 256;
 export const COMMAND_ID_MAX_LENGTH = 64;
-export const COMMAND_END_LINES = ['\r\n', '\r', '\n', ''];
+export const COMMAND_END_LINES = ['\r\n', '\n\r', '\r', '\n', ''];
 
 export function validateCommandPayload(payload) {
   if (!isPlainObject(payload))

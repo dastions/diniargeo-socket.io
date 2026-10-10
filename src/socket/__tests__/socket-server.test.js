@@ -257,6 +257,16 @@ describe('SocketServer', () => {
     expect(armari.handleCommand).toHaveBeenCalledWith('RAW', '');
   });
 
+  it('accepts the reversed "\\n\\r" endLine', async () => {
+    const client = connectClient({ token: TOKEN });
+    await waitFor(client, 'connect');
+
+    client.emit(SOCKET_EVENTS.COMMAND, { id: 'c-3', command: 'READ', endLine: '\n\r' });
+    await waitFor(client, SOCKET_EVENTS.COMMAND_ANSWER);
+
+    expect(armari.handleCommand).toHaveBeenCalledWith('READ', '\n\r');
+  });
+
   it('answers NO_RESPONSE when the scale does not answer the command', async () => {
     armari.handleCommand.mockResolvedValue(null);
     const client = connectClient({ token: TOKEN });

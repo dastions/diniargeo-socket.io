@@ -27,7 +27,7 @@ services:
     <<: *slave
     environment:
       HTTP_PORT: 3030
-      MACHINE_MODEL: test
+      MACHINE_MODEL: dini-pc
       BASCULA_NAME: TEST-A
       SOCKET_ALLOWED_ORIGINS: http://localhost:5173
       SOCKET_DATA_INTERVAL_MS: 300
