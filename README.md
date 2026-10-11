@@ -11,6 +11,15 @@ non-commercial use under the
 [PolyForm Noncommercial License 1.0.0](LICENSE.md); commercial use requires a
 license from Dastions (see [License](#license)).
 
+### Used in
+
+dtmi4-socket powers the scale integration of these applications, all of them
+licensed by Dastions:
+
+- [Batch Control Dosage](https://dosage-app.dastions.com/) — dosage-app.dastions.com
+- [Truck and Scales](https://www.truckandscales.com/) — truckandscales.com
+- [DTM i4.0](https://dtmi4-app.dastions.com/) — dtmi4-app.dastions.com
+
 ```text
 Scale (hardware)
    ↑↓  READ / ZERO commands  (serial port or TCP)
@@ -384,6 +393,12 @@ build on it.
 Need help integrating scales in your plant, a commercial license or a custom
 development? Contact us at support@dastions.com or visit
 [dastions.com](https://dastions.com).
+
+## Contact
+
+For support, questions about the license (including commercial licenses) or
+to report a problem, write to
+[support@dastions.com](mailto:support@dastions.com).
 
 ## Contributing
 
