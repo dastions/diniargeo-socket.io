@@ -21,6 +21,8 @@ function createFakeArmari() {
     handleError: jest.fn(),
     handleZero: jest.fn(),
     handleCommand: jest.fn(async (command) => `ANSWER ${command}\r\n`),
+    handleClientConnected: jest.fn(),
+    handleClientsDisconnected: jest.fn(async () => {}),
   };
 }
 
@@ -369,6 +371,23 @@ describe('SocketServer', () => {
     const second = connectClient({ token: TOKEN });
     await waitFor(second, 'connect');
     expect(second.connected).toBe(true);
+  });
+
+  it('starts the READ loop on the first client and releases the scale when the last one leaves', async () => {
+    const first = connectClient({ token: TOKEN });
+    await waitFor(first, 'connect');
+    expect(armari.handleClientConnected).toHaveBeenCalledTimes(1);
+    expect(armari.handleClientsDisconnected).not.toHaveBeenCalled();
+
+    // A client rejected by the plan limit never counted: no release.
+    const rejected = connectClient({ token: TOKEN });
+    await waitFor(rejected, 'connect_error');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(armari.handleClientsDisconnected).not.toHaveBeenCalled();
+
+    first.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(armari.handleClientsDisconnected).toHaveBeenCalledTimes(1);
   });
 
   it('allows a single active instance', () => {

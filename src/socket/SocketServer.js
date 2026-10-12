@@ -87,6 +87,9 @@ class SocketServer {
     this.clients.add(socket.id);
     console.log(`Socket.IO: client connected (${this.clients.size}/${this.maxClients})`);
 
+    if (this.clients.size === 1)
+      this.armari?.handleClientConnected?.();
+
     this.registerSocketHandlers(socket);
 
     // Let the new client know the current device status right away.
@@ -104,8 +107,14 @@ class SocketServer {
   }
 
   handleDisconnection(socket) {
-    this.clients.delete(socket.id);
+    if (!this.clients.delete(socket.id))
+      return;
+
     console.log(`Socket.IO: client disconnected (${this.clients.size}/${this.maxClients})`);
+
+    if (this.clients.size === 0)
+      Promise.resolve(this.armari?.handleClientsDisconnected?.())
+        .catch((error) => console.log(`Socket.IO: release failed (${error.message})`));
   }
 
   startDataInterval() {

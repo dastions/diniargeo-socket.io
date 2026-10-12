@@ -133,7 +133,60 @@ describe('Scale', () => {
   });
 });
 
+describe('Scale READ loop', () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let scale;
+
+  afterEach(() => scale.stopReading());
+
+  it('does not poll until startReading and stops (dropping the reading) on stopReading', async () => {
+    scale = createScale({ readIntervalMs: 10 });
+    await sleep(30);
+    expect(scale.interface.write).not.toHaveBeenCalled();
+
+    scale.startReading();
+    await nextTick();
+    expect(scale.interface.write).toHaveBeenCalledWith('READ\r\n');
+    scale.parseData('ST,GS,     1.0,kg\r\n');
+    await nextTick();
+    expect(scale.data.weight).toBe(1);
+
+    scale.stopReading();
+    expect(scale.data).toBeNull();
+    const writes = scale.interface.write.mock.calls.length;
+    await sleep(40);
+    expect(scale.interface.write.mock.calls.length).toBe(writes);
+  });
+
+  it('never runs two loops when restarted while a READ is in flight', async () => {
+    scale = createScale({ readIntervalMs: 40 });
+    scale.interface.write.mockImplementation(() =>
+      setImmediate(() => scale.parseData('ST,GS,     1.0,kg\r\n')));
+
+    scale.startReading();
+    scale.stopReading();
+    scale.startReading();
+    await sleep(60);
+
+    // Old loop: its READ only. New loop: READ at 0 ms and 40 ms.
+    expect(scale.interface.write).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe('TestScale', () => {
+  it('only simulates readings between startReading and stopReading', () => {
+    const scale = new TestScale({ id: 'test', units: 'kg', readIntervalMs: 10 });
+
+    scale.start();
+    expect(scale.data).toBeNull();
+
+    scale.startReading();
+    expect(scale.data).toMatchObject({ id: 'test', units: 'kg' });
+
+    scale.stopReading();
+    expect(scale.data).toBeNull();
+  });
+
   it('returns a random weight on READ without any interface', async () => {
     const scale = new TestScale({ id: 'test', units: 'kg' });
 

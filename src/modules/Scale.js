@@ -29,6 +29,8 @@ class Scale extends EventEmitter {
     this.responding = true;
     this.queue     = Promise.resolve();
     this.readTimer = null;
+    this.polling   = false;
+    this.pollGeneration = 0;
 
     this.setInterface(params);
 
@@ -48,21 +50,40 @@ class Scale extends EventEmitter {
       throw new Error('Non <ip> or <com> connection configured on device');
   }
 
+  // Opens the interface only: the READ loop runs while there are Socket.IO
+  // clients (startReading / stopReading, driven by Armari).
   start() {
     this.interface.init();
-    this.readLoop();
   }
 
-  stop() {
+  startReading() {
+    if (this.polling)
+      return;
+
+    this.polling = true;
+    this.readLoop(++this.pollGeneration);
+  }
+
+  // The last reading is dropped so a new client never gets a stale weight.
+  stopReading() {
+    this.polling = false;
+    this.pollGeneration += 1;
     clearTimeout(this.readTimer);
     this.readTimer = null;
+    this.reading = null;
   }
 
-  async readLoop() {
+  // `generation` ends a loop whose READ was still in flight when polling was
+  // stopped (and possibly restarted), so two loops never run at once.
+  async readLoop(generation) {
+    if (generation !== this.pollGeneration)
+      return;
+
     if (this.isConnected)
       await this.read();
 
-    this.readTimer = setTimeout(() => this.readLoop(), this.readIntervalMs);
+    if (generation === this.pollGeneration)
+      this.readTimer = setTimeout(() => this.readLoop(generation), this.readIntervalMs);
   }
 
   get isConnected() {

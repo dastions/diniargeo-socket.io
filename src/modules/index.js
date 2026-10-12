@@ -4,6 +4,11 @@ import TestScale from "./TestScale";
 
 const MACHINE_MODEL = process.env.MACHINE_MODEL;
 
+// Commands that leave the scale in a safe state when the process is over:
+// the last client disconnected (page closed, scale changed, network lost…).
+// OUTP00000 switches every digital output off (range lights, G-09).
+export const RELEASE_COMMANDS = ['OUTP00000'];
+
 // Main class: owns the scale and receives the events delivered by the
 // Socket.IO server.
 class Armari {
@@ -23,6 +28,24 @@ class Armari {
       this.device.start();
     } catch (error) {
       console.log(error);
+    }
+  }
+
+  // First client connected: start asking the scale for the weight.
+  handleClientConnected() {
+    console.log("Socket.IO: first client connected, READ loop started");
+    this.device?.startReading();
+  }
+
+  // Last client disconnected: stop the READ loop and run RELEASE_COMMANDS
+  // (queued like any command, so they never mix with a READ in flight).
+  async handleClientsDisconnected() {
+    console.log("Socket.IO: no clients left, READ loop stopped");
+    this.device?.stopReading();
+
+    for (const command of RELEASE_COMMANDS) {
+      const answer = await this.device?.writeCommand(command);
+      console.log(`Release command ${command}: ${answer ? JSON.stringify(answer) : 'no answer'}`);
     }
   }
 

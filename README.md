@@ -57,7 +57,7 @@ raw answer (a line terminated by `\n`) or `null` if there is no answer within
 
 | Command | Answer | Usage |
 |---|---|---|
-| `READ` | `ST,GS,     0.0,kg\r\n` | Sent in a loop every `SCALE_READ_INTERVAL_MS`; updates the in-memory reading |
+| `READ` | `ST,GS,     0.0,kg\r\n` | Sent in a loop every `SCALE_READ_INTERVAL_MS` **while at least one client is connected**; updates the in-memory reading |
 | `ZERO` | any line | Zeroing requested from the frontend (no answer to the frontend) |
 
 `READ` format: `stability,mode,value,units`.
@@ -69,6 +69,19 @@ Commands are queued: there are never two commands awaiting an answer at the
 same time. If a command times out, the scale is marked as **not responding**:
 the status becomes `no_response` (even if the TCP/serial connection is still
 open) and `data` readings stop being emitted until it answers again.
+
+### Client lifecycle (`Armari`)
+
+- **First client connects** → `handleClientConnected`: the `READ` loop starts.
+- **Last client disconnects** (page closed, scale changed, network lost…) →
+  `handleClientsDisconnected`: the `READ` loop stops, the last reading is
+  dropped and every command in `RELEASE_COMMANDS` (`src/modules/index.js`) is
+  sent through the same queue. Today it is `OUTP00000` (all digital outputs
+  off, so no range light is left on). Add there any other command that must
+  run when the process is over.
+
+With no clients the scale is not polled at all; the interface (serial/TCP)
+stays open and reconnects on its own.
 
 ## Structure
 

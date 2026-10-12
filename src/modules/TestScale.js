@@ -24,14 +24,21 @@ class TestScale extends EventEmitter {
     this.readTimer  = null;
   }
 
-  start() {
+  // No interface to open; the READ loop follows the Socket.IO clients.
+  start() {}
+
+  startReading() {
+    if (this.readTimer)
+      return;
+
     this.read();
     this.readTimer = setInterval(() => this.read(), this.readIntervalMs);
   }
 
-  stop() {
+  stopReading() {
     clearInterval(this.readTimer);
     this.readTimer = null;
+    this.reading = null;
   }
 
   get isConnected() {
